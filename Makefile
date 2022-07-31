@@ -9,3 +9,6 @@ build: prep
 
 run: prep
 	@LOG_LEVEL=debug go run ./internal
+
+release:
+	goreleaser release --skip-publish --rm-dist
