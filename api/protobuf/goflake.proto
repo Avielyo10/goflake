@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package goflake;
+
+option go_package = "github.com/Avielyo10/goflake/internal/proto";
+
+message GetUUIDRequest {}
+message GetUUIDResponse {
+  uint64 uuid = 1; // new UUID
+}
+
+message DecomposeRequest {
+  uint64 uuid = 1; // UUID to decompose
+}
+
+message DecomposeResponse {
+  string uuid = 1; // the uuid of the flake that was decomposed
+  string timestamp = 2; // RFC3339
+  string datacenter_id = 3; // the datacenter id of the flake
+  string machine_id = 4; // the machine id of the flake
+  string sequence = 5; // the sequence of the flake
+  bool msb = 6; // false for 0, true for 1
+}
+
+service FlakeService {
+    rpc GetUUID(GetUUIDRequest) returns (GetUUIDResponse) {}
+    rpc Decompose(DecomposeRequest) returns (DecomposeResponse) {}
+}
+

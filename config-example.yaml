@@ -1,0 +1,22 @@
+log_level: debug # debug, info, warn, error, fatal
+env: development # development, production
+datacenter_id: 0 # 0 - 2 ^ flake.bits_len.datacenter_id - 1
+machine_id: 0 # 0 - 2 ^ flake.bits_len.machine_id - 1
+
+flake: # flake configuration
+  bits_len: # bits length of flake id, needs to sum to 63 (1 bit for sign)
+    datacenter_id: 5
+    machine_id: 5
+    sequence: 12
+    time: 41
+  epoch: 1659034655453 # epoch of flake id, default is Thu Jul 28 2022 18:57:35 UTC
+  tick_ms: 1 # tick interval in milliseconds to set sequence to 0, default is 1ms
+
+server: # server configuration
+  host: localhost # server host
+  port: 8080
+  tls: # tls configuration
+    cert_path: ""
+    enabled: false
+    key_path: ""
+  type: grpc # grpc, rest
