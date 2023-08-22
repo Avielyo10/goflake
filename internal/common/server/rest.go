@@ -31,7 +31,7 @@ func (s *RESTServer) Serve() error {
 	v1 := router.Group("/v1")
 	{
 		v1.GET("/uuid", s.getFlakeUUID)
-		v1.POST("/decompose/:uuid", s.decompose)
+		v1.GET("/decompose/:uuid", s.decompose)
 	}
 
 	// check for tls
