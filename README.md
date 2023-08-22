@@ -17,6 +17,7 @@ go install github.com/Avielyo10/goflake@latest
 Goflake will try to read configuration from `$HOME/.goflake/config.yaml` or `$PWD/config.yaml` if it exists, else default will apply. You can also specify configuration from environment variables to override configuration from file.
 
 For example:
+
 ```bash
 env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run .
 ```
