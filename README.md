@@ -9,7 +9,7 @@ See [announcing snowflake](https://blog.twitter.com/engineering/en_us/a/2010/ann
 ## Install
 
 ```bash
-go install github.com/Avielyo10/goflake
+go install github.com/Avielyo10/goflake@latest
 ```
 
 ## Configuration
@@ -18,7 +18,7 @@ Goflake will try to read configuration from `$HOME/.goflake/config.yaml` or `$PW
 
 For example:
 ```bash
-env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run ./internal/
+env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run .
 ```
 
 ### Configuration File in detail
