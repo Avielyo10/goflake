@@ -5,10 +5,10 @@ prep:
 	@go vet ./...
 
 build: prep
-	@go build -o goflake ./internal
+	@go build -o goflake .
 
 run: prep
-	@LOG_LEVEL=debug go run ./internal
+	@LOG_LEVEL=debug go run .
 
 release:
 	goreleaser release --skip-publish --rm-dist
