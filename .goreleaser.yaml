@@ -31,3 +31,13 @@ release:
   github:
     owner: Avielyo10
     name: goflake
+dockers:
+  - image_templates:
+      - 'ghcr.io/avielyo10/goflake:latest'
+      - 'ghcr.io/avielyo10/goflake:{{ .Tag }}'
+    extra_files:
+      - go.mod
+      - go.sum
+      - main.go
+      - internal/
+      - config/

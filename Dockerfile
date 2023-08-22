@@ -7,10 +7,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o goflake
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o goflake
 RUN upx --best --lzma goflake
 
 FROM scratch
+
+LABEL org.opencontainers.image.source=github.com/Avielyo10/goflake
+LABEL org.opencontainers.image.description="GoFlake is a distributed unique ID generator inspired by Twitter's Snowflake."
+
 COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=0 /go/src/github.com/Avielyo10/goflake/goflake /goflake
 USER 1001

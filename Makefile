@@ -12,3 +12,6 @@ run: prep
 
 release:
 	goreleaser release --skip-publish --rm-dist
+
+docker:
+	docker build -t ghcr.io/avielyo10/goflake:latest .
