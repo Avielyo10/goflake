@@ -13,10 +13,9 @@ flake: # flake configuration
   tick_ms: 1 # tick interval in milliseconds to set sequence to 0, default is 1ms
 
 server: # server configuration
-  host: localhost # server host
+  host: 0.0.0.0 # server host
   port: 8080
   tls: # tls configuration
     cert_path: ""
-    enabled: false
     key_path: ""
   type: grpc # grpc, rest

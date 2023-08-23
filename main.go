@@ -11,7 +11,12 @@ func main() {
 	log := logger.NewLogger(cfg.LogLevel)
 	server := server.NewServer(cfg, log)
 
-	log.Info("Starting ", cfg.Server.Type, " server at ", cfg.Server.Host, ":", cfg.Server.Port)
+	tlsEnabled := cfg.Server.TLS.CertPath != "" && cfg.Server.TLS.KeyPath != ""
+	if tlsEnabled {
+		log.Info("Starting ", cfg.Server.Type, " TLS server at ", cfg.Server.Host, ":", cfg.Server.Port)
+	} else {
+		log.Info("Starting ", cfg.Server.Type, " server at ", cfg.Server.Host, ":", cfg.Server.Port)
+	}
 	if err := server.Serve(); err != nil {
 		log.Fatal(err)
 	}

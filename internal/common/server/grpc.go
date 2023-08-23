@@ -23,22 +23,27 @@ import (
 
 type GRPCServer struct {
 	pb.UnimplementedFlakeServiceServer
-	Config  *config.Config
+	config  *config.Config
 	flacker *app.Flacker
 	log     *logrus.Logger
+}
+
+// NewGRPCServer creates a new grpc server
+func NewGRPCServer(cfg *config.Config, log *logrus.Logger) *GRPCServer {
+	return &GRPCServer{config: cfg, flacker: app.NewFlacker(*cfg), log: log}
 }
 
 // Serve starts the grpc server, implements the Server interface
 func (s *GRPCServer) Serve() error {
 	// Create a listener on TCP port
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Config.Server.Host, s.Config.Server.Port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port))
 	if err != nil {
 		return err
 	}
 	var opts []grpc.ServerOption
 	// Set TLS credentials if enabled
-	if s.Config.Server.TLS.Enabled {
-		creds, err := credentials.NewServerTLSFromFile(s.Config.Server.TLS.CertPath, s.Config.Server.TLS.KeyPath)
+	if s.config.Server.TLS.CertPath != "" && s.config.Server.TLS.KeyPath != "" {
+		creds, err := credentials.NewServerTLSFromFile(s.config.Server.TLS.CertPath, s.config.Server.TLS.KeyPath)
 		if err != nil {
 			return err
 		}
@@ -62,7 +67,7 @@ func (s *GRPCServer) Serve() error {
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterFlakeServiceServer(grpcServer, s)
 	// Register reflection service on grpc server
-	if s.Config.Env == config.DevelopmentEnvType {
+	if s.config.Env == config.DevelopmentEnvType {
 		reflection.Register(grpcServer)
 	}
 	return grpcServer.Serve(lis)
