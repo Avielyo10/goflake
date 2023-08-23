@@ -2,7 +2,8 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
+	"os"
+
 	"github.com/spf13/viper"
 )
 
@@ -17,7 +18,6 @@ type Config struct {
 		Host string     `mapstructure:"host" json:"host"`
 		Port int        `mapstructure:"port" json:"port"`
 		TLS  struct {
-			Enabled  bool   `mapstructure:"enabled" json:"enabled"`
 			CertPath string `mapstructure:"cert_path" json:"cert_path"`
 			KeyPath  string `mapstructure:"key_path" json:"key_path"`
 		} `mapstructure:"tls" json:"tls"`
@@ -38,20 +38,19 @@ var config Config
 
 // MustConfig configures the application and panics on error
 func MustConfig() *Config {
-	viper.SetConfigName("config")
+	viper.SetConfigName("config.yaml")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("$HOME/.goflake")
+	viper.AddConfigPath("/etc/goflake")
 	viper.AddConfigPath(".")
 
 	// set defaults
-	viper.SetDefault("env", "development")
+	viper.SetDefault("env", DevelopmentEnvType)
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("datacenter_id", 0)
 	viper.SetDefault("machine_id", 0)
 	viper.SetDefault("server.type", "grpc")
-	viper.SetDefault("server.host", "localhost")
+	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("server.tls.enabled", false)
 	viper.SetDefault("server.tls.cert_path", "")
 	viper.SetDefault("server.tls.key_path", "")
 	viper.SetDefault("flake.epoch", 1659034655453) // Thu Jul 28 2022 18:57:35 UTC
@@ -87,28 +86,28 @@ func GetConfig() Config {
 // validate the configuration
 func (c Config) validate() error {
 	if !IsFlakeConfiguredProperly(c) {
-		return ErrInvalidConfig{errors.New("flake configuration is not properly configured, sum of bits length must be 63")}
+		return ErrInvalidConfig{"flake configuration is not properly configured, sum of bits length must be 63"}
 	}
 	if !IsValidServerType(c.Server.Type) {
-		return ErrInvalidConfig{errors.New("server.type must be grpc or http")}
+		return ErrInvalidConfig{"server.type must be grpc or http"}
 	}
 	if !IsValidEnvType(c.Env) {
-		return ErrInvalidConfig{errors.New("env must be development or production")}
+		return ErrInvalidConfig{"env must be development or production"}
 	}
-	if c.Server.TLS.Enabled && (c.Server.TLS.CertPath == "" || c.Server.TLS.KeyPath == "") {
-		return ErrInvalidConfig{errors.New("tls.cert_path and tls.key_path must be set if tls.enabled is true")}
+	if !IsValidTLSConfig(c) {
+		return ErrInvalidConfig{"tls configuration is invalid"}
 	}
 	return nil
 }
 
 // ErrInvalidConfig is returned when the configuration is invalid
 type ErrInvalidConfig struct {
-	Err error
+	Err string
 }
 
 // Error returns the error message
 func (e ErrInvalidConfig) Error() string {
-	return e.Err.Error()
+	return e.Err
 }
 
 // ToString returns the configuration as a string
@@ -168,4 +167,16 @@ func IsValidEnvType(envType EnvType) bool {
 func IsFlakeConfiguredProperly(c Config) bool {
 	sum := c.Flake.BitsLen.DatacenterID + c.Flake.BitsLen.MachineID + c.Flake.BitsLen.Time + c.Flake.BitsLen.Sequence
 	return sum == 63
+}
+
+// IsValidTLSConfig returns true if the tls configuration is valid
+func IsValidTLSConfig(c Config) bool {
+	return (c.Server.TLS.CertPath == "" && c.Server.TLS.KeyPath == "") ||
+		(fileExists(c.Server.TLS.CertPath) && fileExists(c.Server.TLS.KeyPath))
+}
+
+// fileExists returns true if the file exists
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

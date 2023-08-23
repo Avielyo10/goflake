@@ -14,7 +14,7 @@ go install github.com/Avielyo10/goflake@latest
 
 ## Configuration
 
-Goflake will try to read configuration from `$HOME/.goflake/config.yaml` or `$PWD/config.yaml` if it exists, else default will apply. You can also specify configuration from environment variables to override configuration from file.
+Goflake will try to read configuration from `/etc/goflake/config.yaml` or `$CWD/config.yaml` if it exists, else default will apply. You can also specify configuration from environment variables to override configuration from file.
 
 For example:
 
@@ -43,8 +43,7 @@ env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run .
   * `port`: server port
   * `tls configuration`
     * `cert_path`: path to certificate file
-    * `enabled`: false
     * `key_path`: path to key file
   * `type`: either grpc, rest
 
-See example [config](./config-example.yaml)
+See example [config](./examples/config.yaml)

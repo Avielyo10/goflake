@@ -13,15 +13,20 @@ import (
 )
 
 type RESTServer struct {
-	Config  *config.Config
+	config  *config.Config
 	flacker *app.Flacker
 	log     *logrus.Logger
+}
+
+// NewRESTServer creates a new rest server
+func NewRESTServer(cfg *config.Config, log *logrus.Logger) *RESTServer {
+	return &RESTServer{config: cfg, flacker: app.NewFlacker(*cfg), log: log}
 }
 
 // Serve starts the rest server, implements the Server interface
 func (s *RESTServer) Serve() error {
 	// Switch to "release" mode in production.
-	if config.ProductionEnvType == s.Config.Env {
+	if config.ProductionEnvType == s.config.Env {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -29,16 +34,14 @@ func (s *RESTServer) Serve() error {
 	router := gin.Default()
 
 	v1 := router.Group("/v1")
-	{
-		v1.GET("/uuid", s.getFlakeUUID)
-		v1.GET("/decompose/:uuid", s.decompose)
-	}
+	v1.GET("/uuid", s.getFlakeUUID)
+	v1.GET("/decompose/:uuid", s.decompose)
 
 	// check for tls
-	if s.Config.Server.TLS.Enabled {
-		return router.RunTLS(fmt.Sprintf("%s:%d", s.Config.Server.Host, s.Config.Server.Port), s.Config.Server.TLS.CertPath, s.Config.Server.TLS.KeyPath)
+	if s.config.Server.TLS.CertPath != "" && s.config.Server.TLS.KeyPath != "" {
+		return router.RunTLS(fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port), s.config.Server.TLS.CertPath, s.config.Server.TLS.KeyPath)
 	} else {
-		return router.Run(fmt.Sprintf("%s:%d", s.Config.Server.Host, s.Config.Server.Port))
+		return router.Run(fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port))
 	}
 }
 
