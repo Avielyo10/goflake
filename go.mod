@@ -9,7 +9,7 @@ require (
 	github.com/spf13/viper v1.16.0
 	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.57.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
