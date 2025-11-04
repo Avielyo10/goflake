@@ -21,6 +21,7 @@ type Flacker struct {
 	machineID    uint8
 	sequence     atomic.Uint32
 	ticker       *time.Ticker
+	done         chan struct{}
 }
 
 // NewFlacker creates a new flacker
@@ -30,6 +31,7 @@ func NewFlacker(cfg config.Config) *Flacker {
 		machineID:    cfg.MachineID,
 		sequence:     *atomic.NewUint32(0),
 		ticker:       time.NewTicker(time.Millisecond * time.Duration(cfg.Flake.TickMs)),
+		done:         make(chan struct{}),
 	}
 	flaker.startTicking()
 	return flaker
@@ -51,10 +53,21 @@ func (f *Flacker) NextUUID() uint64 {
 func (f *Flacker) startTicking() {
 	go func() {
 		// reset the sequence after the ticker has ticked, once per millisecond
-		for range f.ticker.C {
-			f.sequence.Store(0)
+		for {
+			select {
+			case <-f.ticker.C:
+				f.sequence.Store(0)
+			case <-f.done:
+				return
+			}
 		}
 	}()
+}
+
+// Stop stops the flacker ticker and signals the goroutine to exit
+func (f *Flacker) Stop() {
+	close(f.done)
+	f.ticker.Stop()
 }
 
 // Decompose decomposes a UUID into its components
