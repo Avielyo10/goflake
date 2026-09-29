@@ -36,7 +36,7 @@ env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run .
     * `sequence`: uint64, default 12
     * `time`: uint64, default 41
   * `epoch`: epoch of flake id, default is Thu Jul 28 2022 18:57:35 UTC
-  * `tick_ms`: tick interval in milliseconds to set sequence to 0, default is 1ms
+  * `tick_ms`: length of one time unit in milliseconds, the sequence restarts from 0 every tick, default is 1ms
 
 * `server configuration`
   * `host`: server host
