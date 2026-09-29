@@ -88,6 +88,12 @@ func (c Config) validate() error {
 	if !IsFlakeConfiguredProperly(c) {
 		return ErrInvalidConfig{"flake configuration is not properly configured, sum of bits length must be 63"}
 	}
+	if !IsValidNodeIDs(c) {
+		return ErrInvalidConfig{"datacenter_id and machine_id must fit in flake.bits_len.datacenter_id and flake.bits_len.machine_id bits"}
+	}
+	if c.Flake.TickMs == 0 {
+		return ErrInvalidConfig{"flake.tick_ms must be greater than 0"}
+	}
 	if !IsValidServerType(c.Server.Type) {
 		return ErrInvalidConfig{"server.type must be grpc or http"}
 	}
@@ -167,6 +173,12 @@ func IsValidEnvType(envType EnvType) bool {
 func IsFlakeConfiguredProperly(c Config) bool {
 	sum := c.Flake.BitsLen.DatacenterID + c.Flake.BitsLen.MachineID + c.Flake.BitsLen.Time + c.Flake.BitsLen.Sequence
 	return sum == 63
+}
+
+// IsValidNodeIDs returns true if the datacenter id and machine id fit in their configured bits length
+func IsValidNodeIDs(c Config) bool {
+	return uint64(c.DatacenterID) < uint64(1)<<c.Flake.BitsLen.DatacenterID &&
+		uint64(c.MachineID) < uint64(1)<<c.Flake.BitsLen.MachineID
 }
 
 // IsValidTLSConfig returns true if the tls configuration is valid

@@ -1,72 +1,98 @@
 package app
 
 import (
+	"sync"
 	"time"
 
 	"github.com/Avielyo10/goflake/config"
-	"go.uber.org/atomic"
-)
-
-// These constants are the bit lengths of Flake ID parts.
-var (
-	BitLenTime         = config.GetConfig().Flake.BitsLen.Time         // bit length of time
-	BitLenDatacenterID = config.GetConfig().Flake.BitsLen.DatacenterID // bit length of datacenter id
-	BitLenMachineID    = config.GetConfig().Flake.BitsLen.MachineID    // bit length of machine id
-	BitLenSequence     = config.GetConfig().Flake.BitsLen.Sequence     // bit length of sequence number
-	Epoch              = config.GetConfig().Flake.Epoch                // the unix epoch in milliseconds
 )
 
 type Flacker struct {
-	datacenterID uint8
-	machineID    uint8
-	sequence     atomic.Uint32
-	ticker       *time.Ticker
+	datacenterID uint64
+	machineID    uint64
+
+	// bit lengths of Flake ID parts
+	bitLenDatacenterID uint8
+	bitLenMachineID    uint8
+	bitLenSequence     uint8
+
+	epoch  uint64 // the unix epoch in milliseconds
+	tickMs uint64 // length of one time unit in milliseconds
+
+	mu            sync.Mutex
+	lastTimestamp uint64 // time units since epoch of the last generated UUID
+	sequence      uint64 // sequence number within lastTimestamp
+	now           func() time.Time
 }
 
 // NewFlacker creates a new flacker
 func NewFlacker(cfg config.Config) *Flacker {
-	flaker := &Flacker{
-		datacenterID: cfg.DatacenterID,
-		machineID:    cfg.MachineID,
-		sequence:     *atomic.NewUint32(0),
-		ticker:       time.NewTicker(time.Millisecond * time.Duration(cfg.Flake.TickMs)),
+	tickMs := cfg.Flake.TickMs
+	if tickMs == 0 {
+		tickMs = 1
 	}
-	flaker.startTicking()
-	return flaker
+	return &Flacker{
+		datacenterID:       uint64(cfg.DatacenterID),
+		machineID:          uint64(cfg.MachineID),
+		bitLenDatacenterID: cfg.Flake.BitsLen.DatacenterID,
+		bitLenMachineID:    cfg.Flake.BitsLen.MachineID,
+		bitLenSequence:     cfg.Flake.BitsLen.Sequence,
+		epoch:              cfg.Flake.Epoch,
+		tickMs:             tickMs,
+		now:                time.Now,
+	}
 }
 
 // NextUUID returns the next UUID
 func (f *Flacker) NextUUID() uint64 {
-	sequence := f.sequence.Inc() - 1 // -1 because the sequence starts at 0
-	timestamp := uint64(time.Now().UnixMilli()) - Epoch
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	uuid := uint64(timestamp)<<(BitLenDatacenterID+BitLenMachineID+BitLenSequence) |
-		uint64(f.datacenterID)<<(BitLenMachineID+BitLenSequence) |
-		uint64(f.machineID)<<BitLenSequence |
-		uint64(sequence)
-	return uuid
+	maxSequence := uint64(1)<<f.bitLenSequence - 1
+	timestamp := f.currentTimestamp()
+	if timestamp < f.lastTimestamp {
+		// the clock moved backwards, keep issuing from the last timestamp
+		timestamp = f.lastTimestamp
+	}
+	if timestamp == f.lastTimestamp {
+		f.sequence = (f.sequence + 1) & maxSequence
+		if f.sequence == 0 {
+			// sequence exhausted for this time unit, wait for the next one
+			for timestamp <= f.lastTimestamp {
+				time.Sleep(time.Duration(f.tickMs) * time.Millisecond / 10)
+				timestamp = f.currentTimestamp()
+			}
+		}
+	} else {
+		f.sequence = 0
+	}
+	f.lastTimestamp = timestamp
+
+	return timestamp<<(f.bitLenDatacenterID+f.bitLenMachineID+f.bitLenSequence) |
+		f.datacenterID<<(f.bitLenMachineID+f.bitLenSequence) |
+		f.machineID<<f.bitLenSequence |
+		f.sequence
 }
 
-// StartTicking starts the flacker's ticker
-func (f *Flacker) startTicking() {
-	go func() {
-		// reset the sequence after the ticker has ticked, once per millisecond
-		for range f.ticker.C {
-			f.sequence.Store(0)
-		}
-	}()
+// currentTimestamp returns the number of time units elapsed since the epoch
+func (f *Flacker) currentTimestamp() uint64 {
+	nowMs := uint64(f.now().UnixMilli())
+	if nowMs < f.epoch {
+		return 0
+	}
+	return (nowMs - f.epoch) / f.tickMs
 }
 
 // Decompose decomposes a UUID into its components
 func (f *Flacker) Decompose(uuid uint64) map[string]uint64 {
-	var maskSequence = uint64(1<<BitLenSequence - 1)
-	var maskMachineID = uint64((1<<BitLenMachineID - 1) << BitLenSequence)
-	var maskDatacenterID = uint64((1<<BitLenDatacenterID - 1) << (BitLenMachineID + BitLenSequence))
+	var maskSequence = uint64(1)<<f.bitLenSequence - 1
+	var maskMachineID = (uint64(1)<<f.bitLenMachineID - 1) << f.bitLenSequence
+	var maskDatacenterID = (uint64(1)<<f.bitLenDatacenterID - 1) << (f.bitLenMachineID + f.bitLenSequence)
 
 	msb := uuid >> 63
-	time := uuid >> (BitLenDatacenterID + BitLenMachineID + BitLenSequence)
-	datacenterID := uuid & maskDatacenterID >> (BitLenMachineID + BitLenSequence)
-	machineID := uuid & maskMachineID >> BitLenSequence
+	time := uuid >> (f.bitLenDatacenterID + f.bitLenMachineID + f.bitLenSequence)
+	datacenterID := uuid & maskDatacenterID >> (f.bitLenMachineID + f.bitLenSequence)
+	machineID := uuid & maskMachineID >> f.bitLenSequence
 	sequence := uuid & maskSequence
 	return map[string]uint64{
 		"uuid":          uuid,
