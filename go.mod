@@ -2,6 +2,8 @@ module github.com/Avielyo10/goflake
 
 go 1.25.0
 
+toolchain go1.27.4
+
 require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0

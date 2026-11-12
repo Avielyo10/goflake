@@ -13,9 +13,9 @@ func main() {
 
 	tlsEnabled := cfg.Server.TLS.CertPath != "" && cfg.Server.TLS.KeyPath != ""
 	if tlsEnabled {
-		log.Info("Starting ", cfg.Server.Type, " TLS server at ", cfg.Server.Host, ":", cfg.Server.Port)
+		log.Info("Starting ", cfg.Server.Type, " TLS server at ", cfg.Server.Addr())
 	} else {
-		log.Info("Starting ", cfg.Server.Type, " server at ", cfg.Server.Host, ":", cfg.Server.Port)
+		log.Info("Starting ", cfg.Server.Type, " server at ", cfg.Server.Addr())
 	}
 	if err := server.Serve(); err != nil {
 		log.Fatal(err)
