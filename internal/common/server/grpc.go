@@ -11,15 +11,21 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/grpc-ecosystem/go-grpc-middleware/tags"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 
 	"github.com/Avielyo10/goflake/config"
 	"github.com/Avielyo10/goflake/internal/app"
 	pb "github.com/Avielyo10/goflake/internal/common/genproto/api/protobuf"
 )
+
+// maxGRPCRecvMsgSize is the largest request the grpc server accepts, in bytes
+const maxGRPCRecvMsgSize = 4 << 10
 
 type GRPCServer struct {
 	pb.UnimplementedFlakeServiceServer
@@ -36,11 +42,12 @@ func NewGRPCServer(cfg *config.Config, log *logrus.Logger) *GRPCServer {
 // Serve starts the grpc server, implements the Server interface
 func (s *GRPCServer) Serve() error {
 	// Create a listener on TCP port
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port))
+	lis, err := net.Listen("tcp", s.config.Server.Addr())
 	if err != nil {
 		return err
 	}
-	var opts []grpc.ServerOption
+	// requests are a few bytes long, there is no reason to buffer the default 4MB for anyone
+	opts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxGRPCRecvMsgSize)}
 	// Set TLS credentials if enabled
 	if s.config.Server.TLS.CertPath != "" && s.config.Server.TLS.KeyPath != "" {
 		creds, err := credentials.NewServerTLSFromFile(s.config.Server.TLS.CertPath, s.config.Server.TLS.KeyPath)
@@ -55,12 +62,15 @@ func (s *GRPCServer) Serve() error {
 			return "grpc.time_ns", duration.Nanoseconds()
 		}),
 	}
-	logrusEntry := logrus.NewEntry(logrus.StandardLogger())
+	// log through the configured logger so that log_level applies to request logs as well
+	logrusEntry := logrus.NewEntry(s.log)
 	opts = append(
 		opts,
 		grpc_middleware.WithUnaryServerChain(
 			grpc_ctxtags.UnaryServerInterceptor(),
 			grpc_logrus.UnaryServerInterceptor(logrusEntry, logrusOpts...),
+			// a panicking handler fails its own request instead of taking the server down
+			grpc_recovery.UnaryServerInterceptor(),
 		),
 	)
 	// Create a server
@@ -76,23 +86,29 @@ func (s *GRPCServer) Serve() error {
 // GetUUID implements the FlakeServiceServer interface
 func (s *GRPCServer) GetUUID(ctx context.Context, req *pb.GetUUIDRequest) (*pb.GetUUIDResponse, error) {
 	s.log.Debug("Generating new uuid")
-	return &pb.GetUUIDResponse{Uuid: s.flacker.NextUUID()}, nil
+	uuid, err := s.flacker.NextUUID()
+	if err != nil {
+		s.log.Error("Failed to generate uuid: ", err)
+		return nil, status.Error(codes.Unavailable, err.Error())
+	}
+	return &pb.GetUUIDResponse{Uuid: uuid}, nil
 }
 
 // Decompose implements the FlakeServiceServer interface
 func (s *GRPCServer) Decompose(ctx context.Context, req *pb.DecomposeRequest) (*pb.DecomposeResponse, error) {
-	s.log.Debug("Decomposing: ", req.Uuid)
-	decomposed := s.flacker.Decompose(req.Uuid)
-	msb := false
-	if decomposed["msb"] == 1 {
-		msb = true
+	uuid := req.GetUuid()
+	s.log.Debug("Decomposing: ", uuid)
+	decomposed := s.flacker.Decompose(uuid)
+	timestamp, ok := s.flacker.Time(decomposed["time"])
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "uuid timestamp is out of range")
 	}
 	return &pb.DecomposeResponse{
-		Uuid:         fmt.Sprint(req.Uuid),
-		Timestamp:    fmt.Sprint(decomposed["time"]),
+		Uuid:         fmt.Sprint(uuid),
+		Timestamp:    timestamp.Format(time.RFC3339Nano),
 		DatacenterId: fmt.Sprint(decomposed["datacenter_id"]),
 		MachineId:    fmt.Sprint(decomposed["machine_id"]),
 		Sequence:     fmt.Sprint(decomposed["sequence"]),
-		Msb:          msb,
+		Msb:          decomposed["msb"] == 1,
 	}, nil
 }

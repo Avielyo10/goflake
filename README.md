@@ -35,7 +35,7 @@ env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run .
     * `machine_id`: uint64, default 5
     * `sequence`: uint64, default 12
     * `time`: uint64, default 41
-  * `epoch`: epoch of flake id, default is Thu Jul 28 2022 18:57:35 UTC
+  * `epoch`: epoch of flake id in unix milliseconds, must not be in the future, default is Thu Jul 28 2022 18:57:35 UTC
   * `tick_ms`: length of one time unit in milliseconds, the sequence restarts from 0 every tick, default is 1ms
 
 * `server configuration`
@@ -47,3 +47,18 @@ env "SERVER.TYPE=rest" DATACENTER_ID=1 MACHINE_ID=2 go run .
   * `type`: either grpc, rest
 
 See example [config](./examples/config.yaml)
+
+Goflake refuses to start with an invalid configuration, for example a `datacenter_id` or `machine_id` that does not fit in its bits, as two nodes sharing the same ids generate the same uuids.
+
+## API
+
+| | rest | grpc |
+|---|---|---|
+| new uuid | `GET /v1/uuid` | `goflake.FlakeService/GetUUID` |
+| decompose a uuid | `GET /v1/decompose/:uuid` | `goflake.FlakeService/Decompose` |
+
+A decomposed uuid reports when it was generated as `timestamp` (RFC 3339), the rest server also returns the raw `time` (ticks since the epoch).
+
+Generating a uuid fails (`503` / `UNAVAILABLE`) rather than return a duplicate when the clock is before the epoch, moved backwards by more than goflake can wait out, or the time no longer fits in `flake.bits_len.time` bits.
+
+Goflake has no authentication, run it on a trusted network or behind a proxy that takes care of it. The docker image runs as an unprivileged user (`65534`), files mounted into it (configuration, tls certificate and key) need to be readable by that user.
